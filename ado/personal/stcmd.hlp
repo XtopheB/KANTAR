@@ -1,0 +1,97 @@
+.-
+help for ^stcmd^, ^inputst^ and ^outputst^                             (Roger Newson)
+.-
+
+Running the Stat/Transfer command from inside Stata
+---------------------------------------------------
+
+        ^stcmd^      [ filetype1 ] infilename.ext1 [ filetype2 ] outfilename.ext2
+                      [ switches ]
+
+        ^stcmd^      command_filename.stc
+
+        ^inputst^    [ filetype ] infilename.ext  [ switches ]
+
+        ^outputst^   [ filetype ] outfilename.ext  [ switches ]
+
+
+Description
+-----------
+
+^stcmd^ calls the Stat/Transfer command ^st^ to convert infilename.ext1 to
+outfilename.ext2, or to obey the commands in the Stat/Transfer command file
+command_filename.stc. ^inputst^ inputs into the memory a Stata-converted version
+of infilename.ext, overwriting any existing data set. ^outputst^ outputs a
+converted version of the Stata data set in memory to outfilename.ext. File
+types are determined by filetype, filetype1 and/or filetype2 if present, and by
+Stat/Transfer from the extensions ext, ext1 and/or ext2 otherwise. File names
+containing spaces must be given in quotes.
+
+
+Switches for use with  ^stcmd^, ^inputst^ and ^outputst^
+--------------------------------------------------
+
+These are prefixed by ^/^ under Windows and by ^-^ under Unix. The Windows switches
+are as follows:
+
+^/o^ specifies that Stat/Transfer will optimize outputfilename.ext to be as small
+    as possible.
+
+^/y^ specifies that outfilename.ext will be overwritten, if it already exists.
+    (If ^/y^ is not specified, then Stat/Transfer consults the user.)
+
+^/s^ will turn on messages and leave the Stat/Transfer window open until
+	the return key is pressed.   
+
+^/t^ tablename is used in order to specify a table for a Microsoft Access data
+    source.
+
+
+Remarks
+-------
+
+^inputst^ and ^outputst^ call ^stcmd^, which in turn calls the Stat/Transfer ^st^
+command. For a list of file types and standard extensions used by
+Stat/Transfer, see the Stat/Transfer manual or on-line help.
+
+
+Examples
+--------
+
+ . ^inputst strange1.sav^
+
+ . ^outputst mydata.sd2 /y^
+ 
+ . ^inputst odbc^
+
+ . ^outputst "My Access File with a Long Name.mdb" "/tFemale South"^
+
+ . ^stcmd mystcom.stc^
+ 
+ . ^stcmd splus hisdset.xyz mydset.csv /y^
+ . ^insheet mydset.csv,comma clear^
+
+
+Author
+------
+
+Roger Newson, Guy's, King's and St Thomas' School of Medicine, London, UK.
+Email: ^roger.newson@@kcl.ac.uk^  The program and help file has been modified
+in minor respects by Circle Systems, chiefly to simplify automatic
+installation.
+
+
+Also see
+--------
+
+Manual:   ^[U] 24.4 Transfer programs^
+          ^[R] insheet, [R] outsheet, [R] infile, [R] outfile^
+On-line:  help for @insheet@, @outsheet@, @infile@, @outfile@
+Also see: Stat/Transfer manuals for Windows or Unix
+          Stat/Transfer on-line help
+
+Stat/Transfer can be installed on Windows 98/95/NT, Windows 3.1, and some Unix
+platforms. It is available from Stata Corporation (email: ^stata@@stata.com^;
+URL: @http://www.stata.com/@) and developed by Circle Systems
+(email: ^sales@@circlesys.com^; URL: @http://www.stattransfer.com/@).
+
