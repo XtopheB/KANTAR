@@ -9,6 +9,7 @@
 /*31/08/2011 : version 2.1 : programme rendu générique (cas 2009 pris en compte)*/
 /*                           importation de Pan_`annee'.act modifiée car à partir de 2009, 10 caractères (et non 9) pr variable nopnltNF    */
 /*01/08/2012 : version 3.0 adaptation du programme pour les données 2010 (spécificités sur les noms de fichiers et format .csv (fini les ".pi" et ".act")*/
+/*01/08/2013 : version 3.1 : 2010 changé en `annee'. OK pour 2011.*/
 /*===============================================================================================================================================================*/
 
 
@@ -17,7 +18,7 @@ capture log close
 *set mem 900M
 set more off  
 
-local version "3.0"
+local version "3.1"
 
 do CheminSourceG.do   / * new 1/09/11  */
 
@@ -83,7 +84,7 @@ foreach annee of local varlistannee {
     
     sort nopnltNF
     
-    save "..\..\..\..\Data2010\Menages\menages`annee'.dta",replace 
+    save "..\..\..\..\Data`annee'\Menages\menages`annee'.dta",replace 
     
    
     /*****  Pondérations mensuelles   *******/
@@ -113,7 +114,7 @@ foreach annee of local varlistannee {
         }
         /**** A partir de 2010 il n'y a plus les fichiers.pi mais des .csv ****/
         else {   
-            insheet  using "INRA_POIDS_`pan'_2010.csv", delimiter(";") 
+            insheet  using "INRA_POIDS_`pan'_`annee'.csv", delimiter(";") 
             ren v4 Pond`annee'
             ren  household  nopnltNF
             /*v5 c'est pour période 1 ; v17 période 13 (donc faire nom variable - 4)*/
@@ -142,7 +143,7 @@ foreach annee of local varlistannee {
     }
     /**** A partir de 2010 il n'y a plus les fichiers.pi mais des .csv ****/
     else { 
-        insheet  using "INRA_PAN_ACTIVITE_HEBDO_2010.csv", delimiter(";")
+        insheet  using "INRA_PAN_ACTIVITE_HEBDO_`annee'.csv", delimiter(";")
         /*v4 c'est pour semaine 1 ; v55 semaine 52 (donc faire nom variable - 3)*/
         ren  household  nopnltNF
         forv k = 4/55{
