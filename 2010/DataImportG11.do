@@ -49,14 +49,25 @@ foreach annee of local varlistannee {
     /* Niveau brutes  */
     clear
     
-    *N'a plus lieu car tuwa directement ds fichier des achats: Importation fichier des unités (tuwa) : "NominalWeights.txt"
+    /*Création manuelle du fichier NominalTuwa2011.dta pr être cohérents avec les années précédentes*/
+    /*A partir de INRA_Questions.csv"*/
+    cd "Achats"
+    insheet  using INRA_Questions.csv , delimit(";")  
+    drop if codequest<100000
+    ren codequest tuwa
+    ren libquest LibTuwa
+    drop idtype
+    save NominalTuwa`annee'.dta,replace
+    cd ..
+    /*il faudra ds DataMakerG11.do faire un merge non plus sur sa1 mais sur tuwa qui est maintenant déjà ds le fichier des achats*/
+
 
     /**********************************************************************/
     /*Importation des nouvelles données ACHAT                             */
     /*à partir  de INRAClassq_Achats_2011p.csv   */
     /**********************************************************************/
     local list_per "01 02 03 04 05 06 07 08 09 10 11 12 13"  
-    *local list_per "01"  
+    local list_per "01"  
 
     cd "DataUSI`annee'"
     
@@ -120,7 +131,7 @@ foreach annee of local varlistannee {
     ren idanciennevf sa1
     ren product ref
     replace panel="PF" if panel=="indetermine"      /*31/07/13 on décide que les 22 produits (ref ou product) jambon à la coupe sont PF*/
-    order ref  sa1 panel codif libelle
+    order ref  sa1 panel 
     
     replace sa1="" if sa1=="indetermine"
     destring sa1, replace
@@ -142,47 +153,67 @@ foreach annee of local varlistannee {
     	local k=substr("`j'",2,3)	/*ruse. j va de 106 à 126. Donc pr avoir des 06...26*/
     	ren c1 c`k'
     	ren c2 v`k'
+        destring c`k', replace
+        destring v`k', replace
     	drop codif`i'
     }
-    replace c06="0" if c06=="-3"    /*condition ne sert à rien car c06=-3 pour tous les produits (c'est l'appellation)*/
+    replace c06=0 if c06==-3    /*condition ne sert à rien car c06=-3 pour tous les produits (c'est l'appellation)*/
     save Achats/Product_Desc_1aN`annee'.dta, replace        /*pr être en adéquation avec les données des années précédentes*/
     
-/*<------------------------------------------------------------------------------------------------------------------------------
-    /* Verification de la liste des produits avec les fichiers d'achat  */  
-    use "Produits${PetitNom`annee'}.dta" , replace 
+
+    /* Vérification de la liste des produits avec les fichiers d'achat  */  
+    use "../Produits${PetitNom`annee'}.dta" , replace      /*nouveau données 2011 : 1L = 1 ref*/
+    drop  codif libelle
     capture drop merge*
     gen mergeall=1
-    local list_per "02 03 04 05 06 07 08 09 10 11 12 13"    /*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! pkoi 02 au départ?*/
+    local list_per "01 02 03 04 05 06 07 08 09 10 11 12 13"    /*6/08/13 correction il faut merger de 1 à 13*/
     
     foreach i of local list_per {
-        /*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! merge ne marche pas*/
-    	merge 1:n ref using "Data_ET`annee'`i'.dta", keep(sa1) /*uniqmaster*/  gen(merge`annee'`i')
-    	bysort sa1 : keep if _n==1
+    	merge n:n ref using "Data_ET`annee'`i'.dta", keepusing(ref) gen(merge`annee'`i')
+    	*bysort sa1 : keep if _n==1
     	replace mergeall=mergeall*merge`annee'`i'
     }
     
-    /* 1er Test  */
+    /******* 1er Test ********/
     distinct sa1 
     levelsof  sa1 if mergeall==1 
     if "`r(levels)'" !="" {
         set output proc
-        di in red " Il y a des produits listés non achetés !"
-        di in yellow " Il s'agit des num : `r(levels)'"
-        list sa1 libellesa1 panel  if mergeall ==1
-        }
-        
-    /* 2ieme Test   */
+        di in red " Il y a des produits (ref) listés non achetés !"
+        di in yellow "Il sont ds les sa1 : `r(levels)'"
+        sort sa1 ref
+        list sa1 ref libellesa1 panel  if mergeall ==1
+    }
+    
+     /******* Test1 bis. Pour les données 2011. On regarde si un sa1 n'est pas du tout acheté (aucune de ses ref) ********/
+    gen Test1=(mergeall==1)
+    bysort sa1 : egen SumTest1=sum(Test1)
+    bysort sa1 : gen Nsa1=_N
+    count if Nsa1==SumTest1
+    if r(N)>0 {
+        di in red "Il y a `r(N)' sa1  non acheté (aucune de ses ref)."
+    }
+
+     /*******  2ieme Test  ********/
     distinct sa1 
     levelsof  sa1 if mod(mergeall,2)==0   /* Il existe un _merge ==2 */ 
     if "`r(levels)'" !="" {
         set output proc
-        di in red " Il y a des produits achetés  non répertoriés dans ProduitPanel!"
+        di in red " Il y a des produits (ref) achetés non répertoriés dans ProduitPanel!"
         di in yellow " Il s'agit des num : `r(levels)'"
         list sa1 libellesa1 panel  if mod(mergeall,2)==0  
     }
+    
+     /*******  Test2 bis********/
+    gen Test2=(mod(mergeall,2)==0)
+    bysort sa1 : egen SumTest2=sum(Test2)
+    count if Nsa1==SumTest2
+    if r(N)>0 {
+        di in red "Il y a `r(N)' sa1  acheté ms absent du fichier des produits."
+    }
+    
     set output error
-    save "Produits${PetitNom`annee'}.dta" , replace 
-    -------------------------------------------------------------------------------------------------->*/
+    save "../Produits${PetitNom`annee'}.dta" , replace 
 
 
 

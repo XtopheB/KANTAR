@@ -61,7 +61,7 @@ foreach annee of local varlistannee {
         cd ../DonneesOriginales/${CheminBrutes`annee'}   
         
         local list_per "01 02 03 04 05 06 07 08 09 10 11 12 13"    /*1/08/13 nouveau, on démarre à 01 à partir d'un fichier vide*/
-local list_per "01"
+local list_per "01" 
         foreach j of local list_per {
             append using "Data_ET`annee'`j'.dta"
             /*fichier produit (sa3, sa2, sa7, sa4....) ou à partir de 2011 : sa1, panel, libellesa1 et Cx, Vx (par contre en 2011, sa2 et sa7 ne sont pas ds ce fichier)*/
@@ -82,18 +82,23 @@ local list_per "01"
         set output error
 
         if `annee'<2011 {   /*Pour 2011 on a déjà les infos panel et libellesa1 via merge précédent ; et tuwa directement ds les achats (mais attention, pas mêmes modalités)*/
-            merge n:1 sa1 using  "../Produits${PetitNom`annee'}.dta" , keep(panel libellesa1)      /*Récup du panel du produit en cours*/
+            merge n:1 sa1 using  "../Produits${PetitNom`annee'}.dta" , keepusing(panel libellesa1)      /*Récup du panel du produit en cours*/
             drop if _merge==2
             capture drop _merge
             
-            sort sa1
-            merge n:1 sa1 using  "Achats\NominalTuwa`annee'.dta" , keep(tuwa LibTuwa)      /*Récup de l'unité (tuwa) du produit en cours*/
+            merge n:1 sa1 using  "Achats\NominalTuwa`annee'.dta" , keepusing(tuwa LibTuwa)      /*Récup de l'unité (tuwa) du produit en cours*/
             drop if _merge==2
             capture drop _merge
-            set output proc
-            count
-            set output error
         }
+        else {
+            merge n:1 tuwa using  "Achats\NominalTuwa`annee'.dta"      
+            drop if _merge==2
+            capture drop _merge
+        }
+        set output proc
+            di "Nb d'achats pour ce produit `produit'."
+            count
+        set output error
         
         if r(N)>0 {     /*test car par exemple produit 152 présent ds Produits2004.dta ms 0 obs!!! (pas d'achat!!!)*/
             cd ../../../ProgsG
@@ -255,13 +260,12 @@ local list_per "01"
                 local ListeModaCx "`r(list)'"
         	
                 foreach mc of local ListeModaCx {
-                  capture gen sp`mc'=""
-                  replace sp`mc'=v`j' if c`j'=="`mc'"
+                  capture gen sp`mc'=.
+                  replace sp`mc'=v`j' if c`j'==`mc'
                 }
                 drop c`j' 
                 drop v`j' 
             }
-            qui capture destring sp*, replace   /*en 2011 on génère des string donc on destring pr que les progs de labellisation fonctionnent*/
             
             /*31/07/13*/
             if `annee'>=2011 {
@@ -279,7 +283,7 @@ local list_per "01"
             set output proc
             ! mkdir `bonprod'
             compress
-            save "`bonprod'/panel`bonprod'NF`annee'",replace     /*   <----   fichier PRODUIT pour une année    */ 
+            qui save "`bonprod'/panel`bonprod'NF`annee'",replace     /*   <----   fichier PRODUIT pour une année    */ 
             set output error
              
             /***********************************/
@@ -305,8 +309,7 @@ local list_per "01"
             /*labellisation  des variables SA2, SA3, SA4 */  
             /*31/07/13 capture rajouté car en 2011 plus de sa4 et sa3-sa2 ci-dessus*/
             capture do "`bonprod'/labelSA3SA4`bonprod'A`annee'.do"   /* Attention : changement de nom avec  2003 */
-             
-                             
+                                         
             /*  <===========  LABELLISATION DES MODALITES de TOUTES LES VARIABLES ===============*/
             quietly ds
             local liste_variables `r(varlist)'
@@ -327,8 +330,12 @@ local list_per "01"
             
             /*  ETAPE N°8 : Création brand2 (ici car besoin du label de sa2 issu du php)*/
             quietly FusionMarques3456    /*NEW 18/12/08*/
-            quietly MN2G    /* 2013 A REVOIR !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! notamment marques leader*/
-            
+            set output proc
+                count
+                quietly MN2G    /* 6/08/13 : revoir MN2G car y a des drop dedans*/
+                di in red "On regarde si MN2G a viré des obs...."
+                count
+            set output error
             di " "
             compress
 
@@ -341,7 +348,8 @@ local list_per "01"
             }
             note : Créé avec la version `version' de DataMakerG.do
             capture numlabel, add force  /*pr avoir "num modalité" . "label modalité"*/
-            label data "Produit `produit' (`lib') , annee `annee' ($S_DATE)" 
+            quietly vallist libellesa1
+            label data "Produit `produit' (`r(list)') , annee `annee' ($S_DATE)" 
             save "`bonprod'/p`bonprod'NF",replace  
      
             /* ON FLINGUE    !!! */

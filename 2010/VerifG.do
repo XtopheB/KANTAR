@@ -13,12 +13,13 @@
 /* 23/09/2011 : Version 2.3 Debuggage sur les unités  (Chris)   */
 /* 29/09/2011 : Version 2.4 correction test unité (V) (le distinct Unite_via_sp10 n'est pas faire que pr achaber=0)*/
 /* 30/07/2012 : Version 2.5 rajout cas où sp10 indique "NON SUIVI" mais  tuwa==4 (grammes) : tuwa prime et on considère des grammes. (V)*/
-
+/* 6/08/2013  : Version 3.0 Test sur plusieurs unités distinct selon avant 2011/après 2011 (car ap 2011 tuwa varie par ref)*/
+/*                          sa4 enlevée de la liste listcom (car absente à partir de 2011)*/
 
 version 11.0
 set output error 
 *pause on
-note : Créé avec la version  2.5 de VerifG.do
+note : Créé avec la version  3.0 de VerifG.do
         
 /*=============ce programme effectue une serie de verifications, et de corrections automatiques si besoin est============*/
 set output proc 
@@ -31,7 +32,7 @@ set output error
 /*liste des variables communes a ts les prodts (16.10.06)*/
     
     local var_importantes "ptwa  cvwp prwa gawa ctwpenwp sa2 nopnltNF sm52 pa sm  Pu Qu "  /*variables importantes*/
-    local listcom "sa3 ctwp sa1 dtwa sa4 npwa s1a7 pa  srwp"  /*17/08/11 On supprime s191, qui peut être à zéro  */
+    local listcom "sa3 ctwp sa1 npwa s1a7 pa  srwp sa4"  /*17/08/11 On supprime s191, qui peut être à zéro  */ /*6/08/13 dtwa qui est maintenant string*/
     local list_cvwp_aberrants "12 14 21 25 26 31 32 780 820 "   /*éventuellement, à compléter*/
     local list_ctwpenwp_aberrants "432 469 507 596 609"    /*liste adaptée aux données 2002 2003 et 2004 A COMPLETER  éventuellement */
     
@@ -88,7 +89,6 @@ foreach m of  local listePB {    /*cas où pr une marque, variable sa7 ambigue*/
 
 set output proc
 tab achaber,m         /*TEST*/
-
 set output error
      
 /*--------------------   PB N° 3  recodage des zeros Secodip en missing (achaber=2 uniquement pour la liste des var importantes)   -----*/
@@ -101,14 +101,19 @@ set output proc
       set output proc
         di " " 
         di in white" traitement de la  variable `X' "  
-        quietly count if `X'==0                                    /*achaber car missing non genant*/   
-        if `r(N)'>0 {   /*affichage que si pb*/  
+        
+        capture confirm new variable `X'    /*6/08/13 rajouté pr tester existence var (car disparition de certaines var en 2011)*/
+        
+        capture quietly count if `X'==0                                    /*achaber car missing non genant*/   
+
+        if `r(N)'>0 & _rc!=0 {   /*affichage que si pb pour une variable présente ds le fichier*/  
             set output proc
             di in yellow " il y a `r(N)' valeurs a zeros dans `X'" 
             set output error  
+            quietly CorrectionA `X' if `X'==0 , code(0) missing(point) /*on code les 0 Secodip en missing, mais on ne code pas */
         }                 
-        quietly CorrectionA `X' if `X'==0 , code(0) missing(point) /*on code les 0 Secodip en missing, mais on ne code pas */
-                                                                 
+        
+                                        
        } /* fin boucle variables */  
        
     di""      
@@ -117,12 +122,13 @@ set output proc
     foreach X in  `var_importantes' { 
         set output proc
         di in white" " 
-        di in white" traitement de la  variable `X' "  
-        quietly count if `X'==0 
-        if `r(N)'>0 {   /*affichage que si pb*/
+        di in white" traitement de la  variable `X' "     /*6/08/13 rajouté pr tester existence var (car disparition de certaines var en 2011)*/
+        capture confirm new variable `X'
+        capture quietly count if `X'==0 
+        if `r(N)'>0 & _rc!=0 {   /*affichage que si pb*/
             di in yellow " il y a `r(N)' valeurs a zeros dans `X'"
+            quietly CorrectionA `X' if `X'==0 , code(2) missing(point) /*coder achaber à 2 si var importantes missing*/                                                                                          
         }
-        quietly CorrectionA `X' if `X'==0 , code(2) missing(point) /*coder achaber à 2 si var importantes missing*/                                                                                          
     } /* fin boucle variables */  
        
         tab achaber,m     /*TEST*/
@@ -158,56 +164,65 @@ mvdecode _all, mv(-1)
 /* -------------------------------Pb N° 5 : Unités multiples et re-transformations en Kg et en L à partir de sp10---------------- */
 /* On replace Qu par  .  si multiples unités (et différentes de G, KG, mL, ou L) */
 set output proc 
-CreateUniteViasp10
 
-drop Qu
-drop Pu
-
-/* Transformation en KG ou litre si unité en Gramme ou ML (sp10 d'abord, puis tuwa) */
-
-/* On a l'info précise par sp10 : et ce sont des G, ML ou G ou ML */
-gen Qu = qorig*gawa*pweigh/1000 if Unite_via_sp10=="G" |  Unite_via_sp10 =="G OU ML" | Unite_via_sp10 =="ML"  
-/* On a pas l'info par sp10: on sait par tuwa que ce sont des  G, ML ou G ou ML */
-replace Qu = qorig*gawa*pweigh/1000 if Unite_via_sp10=="sp10 absente" & (tuwa==4 | tuwa==2 | tuwa==9 | tuwa==15 | tuwa==19)
-
-/*Génération de Qu si unité en Kilogramme ou Litre (sp10 d'abord, puis tuwa) */
-/* On a l'info précise par sp10 : et ce sont des KG, L */
-replace Qu = qorig*gawa*pweigh if Unite_via_sp10=="KG" | Unite_via_sp10=="L"
-
-/* On a pas l'info par sp10: on sait par tuwa que ce sont des  KG ou L*/
-replace Qu = qorig*gawa*pweigh if Unite_via_sp10=="sp10 absente" & (tuwa==25 | tuwa==27)
-
-/* Calcul des PU (en euros) et QU (avec produit en plus )  */
-gen Pu=(ptwa/Qu)    /*Pu (en euros)tenant cpte du coeff produit en plus*/
-
-
-/*17/08/11 changements ds labellisation de Qu selon sp10 et tuwa (valérie)*/
-/* 23/09/11 Modif avec des else if  (Christophe)  */
-
-quietly distinct Unite_via_sp10 if achaber==0   /*car ici on a les ménages non acheteurs...pr qui unite_via_sp10 manquante*/
-
-
-if r(ndistinct)>1 {
-    capture label variable Qu "Plusieurs unités ds ce fichier (cf tuwa et Unite_via_sp10)" 
-    note : Attention, ce produit comporte plusieurs unités (cf sp10 ou tuwa)
-    set output proc 
-    di "Attention, ce produit comporte plusieurs unités (cf sp10 ou tuwa)"
-    tab Unite_via_sp10
-    set output error 
-}
-else {      /*si une seule unité ds le fichier, on met le bon label*/
-    if Unite_via_sp10=="G" | (Unite_via_sp10=="sp10 absente" &  tuwa==4) | (Unite_via_sp10=="NON SUIVI" &  tuwa==4) {
-
-        capture label variable Qu "Kg (quantité totale convertie CV)" 
+qui levels annee
+if `r(levels)' <2011 {    
+    CreateUniteViasp10
+    
+    drop Qu
+    drop Pu
+    
+    /* Transformation en KG ou litre si unité en Gramme ou ML (sp10 d'abord, puis tuwa) */
+    
+    /* On a l'info précise par sp10 : et ce sont des G, ML ou G ou ML */
+    gen Qu = qorig*gawa*pweigh/1000 if Unite_via_sp10=="G" |  Unite_via_sp10 =="G OU ML" | Unite_via_sp10 =="ML"  
+    /* On a pas l'info par sp10: on sait par tuwa que ce sont des  G, ML ou G ou ML */
+    replace Qu = qorig*gawa*pweigh/1000 if Unite_via_sp10=="sp10 absente" & (tuwa==4 | tuwa==2 | tuwa==9 | tuwa==15 | tuwa==19)
+    
+    /*Génération de Qu si unité en Kilogramme ou Litre (sp10 d'abord, puis tuwa) */
+    /* On a l'info précise par sp10 : et ce sont des KG, L */
+    replace Qu = qorig*gawa*pweigh if Unite_via_sp10=="KG" | Unite_via_sp10=="L"
+    
+    /* On a pas l'info par sp10: on sait par tuwa que ce sont des  KG ou L*/
+    replace Qu = qorig*gawa*pweigh if Unite_via_sp10=="sp10 absente" & (tuwa==25 | tuwa==27)
+    
+    /* Calcul des PU (en euros) et QU (avec produit en plus )  */
+    gen Pu=(ptwa/Qu)    /*Pu (en euros)tenant cpte du coeff produit en plus*/
+    
+    
+    /*17/08/11 changements ds labellisation de Qu selon sp10 et tuwa (valérie)*/
+    /* 23/09/11 Modif avec des else if  (Christophe)  */
+    
+    quietly distinct Unite_via_sp10 if achaber==0   /*car ici on a les ménages non acheteurs...pr qui unite_via_sp10 manquante*/
+    
+    
+    if r(ndistinct)>1 {
+        capture label variable Qu "Plusieurs unités ds ce fichier (cf tuwa et Unite_via_sp10)" 
+        note : Attention, ce produit comporte plusieurs unités (cf sp10 ou tuwa)
+        set output proc 
+        di "Attention, ce produit comporte plusieurs unités (cf sp10 ou tuwa)"
+        tab Unite_via_sp10
+        set output error 
     }
-    if Unite_via_sp10 =="G OU ML"   | (Unite_via_sp10=="sp10 absente" &  (tuwa==9 | tuwa==15 | tuwa==19)) | (Unite_via_sp10=="NON SUIVI" &  (tuwa==9 | tuwa==15 | tuwa==19)) {
-        capture label variable Qu "Kg ou L (quantité totale convertie CV)" 
+    else {      /*si une seule unité ds le fichier, on met le bon label*/
+        if Unite_via_sp10=="G" | (Unite_via_sp10=="sp10 absente" &  tuwa==4) | (Unite_via_sp10=="NON SUIVI" &  tuwa==4) {
+    
+            capture label variable Qu "Kg (quantité totale convertie CV)" 
+        }
+        if Unite_via_sp10 =="G OU ML"   | (Unite_via_sp10=="sp10 absente" &  (tuwa==9 | tuwa==15 | tuwa==19)) | (Unite_via_sp10=="NON SUIVI" &  (tuwa==9 | tuwa==15 | tuwa==19)) {
+            capture label variable Qu "Kg ou L (quantité totale convertie CV)" 
+        }
+        if Unite_via_sp10=="ML"  | (Unite_via_sp10=="sp10 absente" &  tuwa==2) | (Unite_via_sp10=="NON SUIVI" &  tuwa==2)  {
+            capture label variable Qu "L (quantité totale convertie CV)"  
+        } 
     }
-    if Unite_via_sp10=="ML"  | (Unite_via_sp10=="sp10 absente" &  tuwa==2) | (Unite_via_sp10=="NON SUIVI" &  tuwa==2)  {
-        capture label variable Qu "L (quantité totale convertie CV)"  
-    } 
+}   /*fin test que sur années avant 2011*/
 
-
+else {
+    quietly distinct tuwa
+    if `r(ndistinct)'>1 {
+        capture label variable tuwa "Unité du produit  (Plusieurs unités ds ce fichier)"   
+    }
 }
 
 set output proc  

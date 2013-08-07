@@ -11,7 +11,7 @@ capture log close
 pause on
 set more off  /* pour que Stata ne stope pas en fin de page  */
 local varlistannee "2007 2008 2009 2010"    
-*local varlistannee " 2007"     
+local varlistannee " 2011"     
  
  
 
@@ -28,10 +28,10 @@ foreach annee of local varlistannee {
     di in red "*************************************"
 
     use "../DonneesOriginales/brutesNF${PetitNom`annee'}\Produits${PetitNom`annee'}.dta" , replace
-    quietly levels sa1 if mergeall!=1 & mergeall!=.     & panel!=.   
-    local ListeTousProd "`r(levels)'" 
+    *quietly levels sa1 if mergeall!=1 & mergeall!=.     & panel!=.   
+    *local ListeTousProd "`r(levels)'" 
     /* MANUELLEMENT */
-*local ListeTousProd "0080 0007" 
+local ListeTousProd "0005" 
 
 
     

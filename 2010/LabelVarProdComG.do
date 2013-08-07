@@ -3,7 +3,10 @@
 /* A lancer sur un fichier produit 2005-2006 nouvelle formule*/
 /*18/12/08 label de sflag rajouté*/
 /*17/08/11 labellisation de tuwa, suppression de LibTuwa (ou ds Epure?), labellisation de Qu et Pu (valérie)*/
+/*31/07/13 un petit capture rajouté + labellisation de sa1 (avant dans DataMakerG.do)*/
+/*6/08/13 version 2.0 : on renomme var "sp1" en "Gencode" pour année 2011 (G ou NG : gencodé ou non)*/
 /********************************************************************************/
+local Version "2.0"
 
 capture label   variable annee "Année du panel"
 capture label   variable cawp "Centrale d'achat (NF)"
@@ -64,12 +67,17 @@ capture label variable sa7 "Marque : MDD ou non"
 capture label define typosa7  1 "MDD"  0 "Non MDD"
 capture label value sa7 typosa7  
         
-/***********    Variables quantités    *************/        
-local toto = LibTuwa[1]
-capture label variable tuwa "`toto'"        /*17/08/11*/
-capture label variable qorig "`toto' (quantité totale)"
-capture label variable Qu "`toto' (quantité totale idem qorig)"
-
+/***********    Variables quantités  (partie modifiée le 6/08/13)  *************/   
+qui levels annee
+if `r(levels)' <2011 {     
+    capture local toto = LibTuwa[1]
+    capture local toto = "(`toto')"
+    di "`toto'"
+}
+capture label variable tuwa "Unité du produit   `toto'"        
+capture label variable qorig "Quantité totale    `toto'"
+capture label variable Qu "Quantité totale convertie CV   `toto'"
+    
 /*************      Variable merge       ************/
 capture label variable mergeProduitMenage "Variable de jointure"
 capture label define typomergeProduitMenage 3  "Achat M connu SECODIP"  2 "Achat fictif : M connu non acheteur" 1 "Achat M inconnu SECODIP"  
@@ -82,3 +90,24 @@ capture label define typoachaber 1 "incoherence sa7", add
 capture label define typoachaber 2 "pb missing var communes importantes", add 
 capture label define typoachaber 3 "circuit distri ou enseignes aberrant (cvwp ou ctwpenwp)", add 
 
+/*NEW  31/07/13*/
+/*************      Variable sa1       ************/
+/*labellisation  de SA1 (pour l'instant un peu artisanal...). */  
+quietly vallist libellesa1
+local lib "`r(list)'"
+/*labellisation variable sa1 num.lib*/
+quietly vallist sa1
+local nbprod "`r(list)'"
+label define typosa1  `nbprod' "`lib'"  
+capture label value sa1 typosa1  
+
+/*NEW  6/08/13*/
+/*************      Variable sp1   pour année 2011    ************/
+qui levels annee
+if `r(levels)' ==2011 {
+    ren sp1 Gencode
+}
+        
+        
+note : Version `Version' de LabelVarProdComG.do
+di in yellow " Fin de LabelVarProdComG "        
