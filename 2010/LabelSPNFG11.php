@@ -41,7 +41,7 @@ while (!feof($fp1))
     if(is_numeric($nmod))   /*pour ne pas avoir la 1ère ligne du fichier qui correspond aux noms des colonnes*/
     {
         // Labellisation des modalités  pour chacune des variables spécifiques
-        $aecrire="capture label define typosp"." ".$nmod." \"".$labmod." \" , modify \n";
+        $aecrire="capture label define typoSpe"." ".$nmod." \"".$labmod." \" , modify \n";
 
         fputs ($fout, $aecrire);
     }
@@ -70,17 +70,17 @@ while (!feof($fp2))
 
     if(is_numeric($nspe))   /*pour ne pas avoir la 1ère ligne du fichier qui correspond aux noms des colonnes*/
     {
-    
+
         if($idtype==0)
         {
-            $aecrire="capture label value sp".$nspe." typosp \n";
+            $aecrire="capture label value Spe".$nspe." typoSpe \n";
             fputs ($fout, $aecrire);
         }
-        
+
         //Affectation des labels aux variables
-        $aecrire="capture label variable sp".$nspe." \"".$labspe." \"  \n";
+        $aecrire="capture label variable Spe".$nspe." \"".$labspe." \"  \n";
         fputs ($fout, $aecrire);
-        
+
 
     }
 

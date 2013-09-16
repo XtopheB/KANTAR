@@ -15,11 +15,14 @@
 /* 30/07/2012 : Version 2.5 rajout cas où sp10 indique "NON SUIVI" mais  tuwa==4 (grammes) : tuwa prime et on considère des grammes. (V)*/
 /* 6/08/2013  : Version 3.0 Test sur plusieurs unités distinct selon avant 2011/après 2011 (car ap 2011 tuwa varie par ref)*/
 /*                          sa4 enlevée de la liste listcom (car absente à partir de 2011)*/
+/*14/08/2013  : Version 3.1 Le test des incohérences sur sa7 (pour une même marque, des fois sa7 indique MDD, des fois non) n'est réalisé que si la variable sa2 est présente*/
+/*              car à partir des données 2011, on rencontre des produits (sa1) sans la variable sa2. (V)*/
+
 
 version 11.0
 set output error 
 *pause on
-note : Créé avec la version  3.0 de VerifG.do
+note : Créé avec la version  3.1 de VerifG.do
         
 /*=============ce programme effectue une serie de verifications, et de corrections automatiques si besoin est============*/
 set output proc 
@@ -64,27 +67,32 @@ set output proc
 set output error
 
 /*------------------------------------------------- PB N°2 : incoherence sa7 (achaber==1)------------------------------------*/
-
-Distinct_marque sa7 
-/*correction si ambiguité sur les marques (sa7)*/
-local listePB `r(liste_pb)'
-set output proc
-di in yellow "------ Correction si ambiguité sur les marques (sa7) (achaber==1) ------"
-di in yellow "(pour une même marque, des modalites differentes de sa7)"
-di "liste des marques a pb : `listePB'"
-set output error
-foreach m of  local listePB {    /*cas où pr une marque, variable sa7 ambigue*/
-    replace achaber=1 if sa2==`m'
-    quietly count if sa2==`m' 
-    scalar define nb_achats_`m'=`r(N)' 
-    quietly count if sa7==1 & sa2==`m' 
-    scalar define pour_mdd=`r(N)'/nb_achats_`m' 
+capture confirm new variable sa2    /*14/08/13 Pr les données 2011 : rajout du test de présence de sa2 ds le fichier */
+if _rc!=0 {    /* la variable sa2 est dans le fichier*/  
+    Distinct_marque sa7 
+    /*correction si ambiguité sur les marques (sa7)*/
+    local listePB `r(liste_pb)'
     set output proc
-    tab sa2 sa7 if achaber==1
-    di "marque `m' a un taux de MDD valant" pour_mdd 
+    di in yellow "------ Correction si ambiguité sur les marques (sa7) (achaber==1) ------"
+    di in yellow "(pour une même marque, des modalites differentes de sa7)"
+    di "liste des marques a pb : `listePB'"
     set output error
-    replace sa7=1 if (pour_mdd>=0.5 &  sa2==`m')   
-    replace sa7=0 if (1-pour_mdd>0.5 &  sa2==`m')   
+    foreach m of  local listePB {    /*cas où pr une marque, variable sa7 ambigue*/
+        replace achaber=1 if sa2==`m'
+        quietly count if sa2==`m' 
+        scalar define nb_achats_`m'=`r(N)' 
+        quietly count if sa7==1 & sa2==`m' 
+        scalar define pour_mdd=`r(N)'/nb_achats_`m' 
+        set output proc
+        tab sa2 sa7 if achaber==1
+        di "marque `m' a un taux de MDD valant" pour_mdd 
+        set output error
+        replace sa7=1 if (pour_mdd>=0.5 &  sa2==`m')   
+        replace sa7=0 if (1-pour_mdd>0.5 &  sa2==`m')   
+    }
+}
+else {
+    di in red "Pb n°2 (incohérence sa7, achaber =1) non testé car variable sa2 absente de ce fichier."
 }
 
 set output proc

@@ -1,5 +1,5 @@
 /*=====================================================================================================*/
-/* =============================== PROGRAMME DATAMAKERNFG ==========================================*/
+/* =============================== PROGRAMME DATAMAKERG ==========================================*/
 /*=====================================================================================================*/
 /* Ce programme NE TRAITE PAS LES FICHIERS MENAGES (voir MenagesMaker567.do)  */
 /* DataMakerNF56 créé à partir de DataMakerNF345.do                           */
@@ -20,8 +20,13 @@
 /* Version 3.1 30/08/11 : Changement de pu en Pu et qu en QU (conforme à notre règle typographique)    */
 /*Version 4.0  1/09/11 : version générique; chgt de boucle : 1 produit par année*/
 /*                     : liste des produits à partir du fichier ProduitsNFXXX.dta DANS la boucle année*/
-/*====================================================================================================*/
-local version "4.0"
+/*Version 5.0 31/07/13 : adaptation aux fichiers 2011 créés par DataImportG11.do*/
+/*Version 5.1 07/08/13 : Correction d'un bug apparu en 2011 lors de la concaténation des périodes pour chaque produit*/ 
+/*Version 5.2 12/08/13 : des "capture" rajoutés pour éviter des pbs lorsqu'un produit n'a pas la variable sa2 (par ex produit 152)*/
+/*Version 5.3 27/08/13 : correction des modalités de tuwa pour conversion de Qu  (V) ; déplacement du lancement de "LabelVarProdComG.do" une fois "LabelSPA`annee'.do" lancé */
+/*                      (pour que Spe1 aient ses moda labellisées car ensuite Spe1 est renommé Gencode)*/
+/*=================================================================================================================================*/
+local version "5.3"
 
 *set output error    /* supprime l'affichage (sauf erreurs) */
 clear
@@ -30,26 +35,36 @@ pause on
 set more off  /* pour que Stata ne stope pas en fin de page  */
 
 /*========================= DEFINITION DES PRODUITS - ANNEES =============================*/
-local varlistannee "2007 2008 2009"      /*  <------------------------- !!! ANNEES   */  
-*local varlistannee "2010"      /*  <------------------------- !!! ANNEES   */  
+*local varlistannee "2007 2008 2009"      /*  <------------------------- !!! ANNEES   */  
+local varlistannee "2007 2008 2009 2010"  
+local varlistannee "2011"      /*  <------------------------- !!! ANNEES   */  
 
 local NbAn : list sizeof varlistannee
 
-do CheminSourceG.do   / * new 1/09/11  */
+do CheminSourceG.do   
 
 foreach annee of local varlistannee {
         
     use "../DonneesOriginales/brutesNF${PetitNom`annee'}\Produits${PetitNom`annee'}.dta" , replace
-    quietly levels sa1 if mergeall!=1 & mergeall!=.     & panel!=.    
+    if `annee'<2011 {
+        quietly levels sa1 if mergeall!=1 & mergeall!=.     & panel!=.      
+    }
+    else {  /*à partir de 2011 on a des infos (panel, sa1) par ref (donc les tests faits ds DataImportG11.do changent) et la variable panel est string ("GC", "PF")*/
+        quietly levels sa1 if   Nsa1!=SumTest1   &   Nsa1!=.  & SumTest1 !=.  &   panel!=""         /*& sa1>=246*/
+    }
     local ListeTousProd "`r(levels)'"  
     /* MANUELLEMENT */
-    *local ListeTousProd "0002 0080 0007" 
+*local ListeTousProd "0005"  /* <------------------------------------ !!!!!!!!!!!!!!!!!!*/ 
     log using "../Data`annee'/Produits/DataMakerG_$S_DATE.smcl", replace
     di in red "Début du prog le `c(current_date)' à `c(current_time)'."
 
     foreach produit of local ListeTousProd { 
         set output proc
-        di in white "--- Année `annee' en cours (produit `produit') ==="
+        di ""
+        di in red "===================================================="
+        di in red "--- Année `annee' en cours (produit `produit') ==="
+        di in red "===================================================="
+        di ""
         set output error
         
         /***********************************/
@@ -58,35 +73,43 @@ foreach annee of local varlistannee {
         clear
         cd ../DonneesOriginales/${CheminBrutes`annee'}   
         
-        use "Data_ET`annee'01.dta", replace
-        keep if sa1==`produit'
-        local list_per "02 03 04 05 06 07 08 09 10 11 12 13"  
-
+        local list_per "01 02 03 04 05 06 07 08 09 10 11 12 13"    /*1/08/13 nouveau, on démarre à 01 à partir d'un fichier vide*/
         foreach j of local list_per {
             append using "Data_ET`annee'`j'.dta"
+            /*fichier produit (sa3, sa2, sa7, sa4....) ou à partir de 2011 : sa1, panel, libellesa1 et Cx, Vx (par contre en 2011, sa2 et sa7 ne sont pas ds ce fichier)*/
+            /*1/08/13 merge ici et pas après la boucle car on a besoin du sa1 ici*/
+            merge n:1 ref using Achats/Product_Desc_1aN`annee'.dta, update replace    /*8/08/13 les options update et replace permettent d'écraser la variable sa1 du master par sa1 du using (sinon sa1 du master missing après append)*/ 
+            drop if _merge==2
+            capture drop _merge
             keep if sa1==`produit'
         }
 
-        sort ref
-        /*NEW 18/12/08 1 fichier  Product_Desc_1aN par année donc chemin change*/
-        merge ref using Achats/Product_Desc_1aN`annee'.dta      /*fichier produit (sa3, sa2, sa7, sa4....)*/
-        drop if _merge==2
-        capture drop _merge
+        /*1/08/13 On compte le nb de var spécifiques (Cx ou Vx) pr automatiser la boucle de création des Spe plus loin*/
+        ds v*
+        local NbV : word count `r(varlist)'
+        local LastV=105+ `NbV' /*la 1ère var spécifique s'appelle C06*/
+            
         set output proc
         di "append des 13 périodes et des infos produits fini pour l'année `annee' (produit `produit')"
         set output error
 
-        sort sa1
-        merge sa1 using  "../Produits${PetitNom`annee'}.dta" , keep(panel libellesa1)      /*Récup du panel du produit en cours*/
-        drop if _merge==2
-        capture drop _merge
-
-        sort sa1
-        merge sa1 using  "Achats\NominalTuwa`annee'.dta" , keep(tuwa LibTuwa)      /*Récup de l'unité (tuwa) du produit en cours*/
-        drop if _merge==2
-        capture drop _merge
+        if `annee'<2011 {   /*Pour 2011 on a déjà les infos panel et libellesa1 via merge précédent ; et tuwa directement ds les achats (mais attention, pas mêmes modalités)*/
+            merge n:1 sa1 using  "../Produits${PetitNom`annee'}.dta" , keepusing(panel libellesa1)      /*Récup du panel du produit en cours*/
+            drop if _merge==2
+            capture drop _merge
+            
+            merge n:1 sa1 using  "Achats\NominalTuwa`annee'.dta" , keepusing(tuwa LibTuwa)      /*Récup de l'unité (tuwa) du produit en cours*/
+            drop if _merge==2
+            capture drop _merge
+        }
+        else {
+            merge n:1 tuwa using  "Achats\NominalTuwa`annee'.dta"      
+            drop if _merge==2
+            capture drop _merge
+        }
         set output proc
-        count
+            di "Nb d'achats pour ce produit `produit'."
+            count
         set output error
         
         if r(N)>0 {     /*test car par exemple produit 152 présent ds Produits2004.dta ms 0 obs!!! (pas d'achat!!!)*/
@@ -126,15 +149,17 @@ foreach annee of local varlistannee {
             gen Qu = qorig*gawa*pweight          /*  Modif du 10/12/2007 suite explications C. Boizot (C)  */
             replace ptwa = ptwa*gawa*pweight      /*  ----------- idem -------------------------*/  
             
-            capture replace Qu = Qu / 1000  if tuwa==4 | tuwa==2 | tuwa==9 | tuwa==15 | tuwa==19   /*on ne divise pas les qtes style nb de parts, ni KG...*/ /*A FAIRE AVEC NominalTUWA!!!!!!*/
-             
+            /*31/07/13 Transfo des qtés en g ou mL en KG ou L. Attention, les modalités de la variables tuwa changent en 2011.*/
+            capture replace Qu = Qu / 1000  if (tuwa==4 | tuwa==2 | tuwa==9 | tuwa==15 | tuwa==19) & `annee'<2011   /*on ne divise pas les qtes style nb de parts, ni KG...*/ /*A FAIRE AVEC NominalTUWA!!!!!!*/
+            capture replace Qu = Qu / 1000  if (tuwa==100002 | tuwa==100004) & `annee'>=2011    /*correction des modalités 27/08/13 (V)*/
+
             /* Calcul des PU (en euros) et QU (avec produit en plus )  */
             capture gen Pu=(ptwa/Qu)    /*Pu (en euros)tenant cpte du coeff produit en plus*/
             
             note : Qu= qorig*gawa*pweigh ; ptwa=ptwa*gawa*pweight (donc Pu=ptwa_orig/quorig)
             
             /*Recodage modalité sa7 (0,1) vs (2,1)*/
-            replace sa7=0 if sa7==2 /*non mdd*/
+            capture replace sa7=0 if sa7==2 /*non mdd pour années avant 2011.*/
     
             /*  On decide de ne plus calculer les prix par panier et les quantité par panier (le 23/04/07) partie détruite !! */        
     
@@ -158,19 +183,20 @@ foreach annee of local varlistannee {
             /***********************************/
             /*partie pour calculer la somme des pondérations (tous les ménages du panel du produit par année et période) (NEW 18/09/07 V)*/
             /*1/09/11 déplacée ici pr ne récupérer que les var pondérations du panel du produit en cours*/
-            quietly levels panel
-            if `r(levels)'==1 {
+            quietly vallist panel       /*31/07/13 levels changé en vallist car panel peut être numérique (1,2,3) ou string (à partir de 2011 : GC, PF)*/
+
+            if "`r(list)'"=="1" | "`r(list)'"=="GC" {
                 local p "gc"
             }
-            if `r(levels)'==2 {
+            if "`r(list)'"=="2" {
                 local p "vp"
             }
-            if `r(levels)'==3 {
+            if "`r(list)'"=="3" {
                 local p "fl"
             }
             /*1/09/11 A partir de 2009 seulement 2 panels!!! (GC, et PF)*/
             if `annee' >=2009 {
-                if `r(levels)'==2 | `r(levels)'==3 {
+                if "`r(list)'"=="2" | "`r(list)'"=="3"  | "`r(list)'"=="PF"  {
                     local p "pf"
                 }
             }
@@ -236,55 +262,76 @@ foreach annee of local varlistannee {
             /*****************************************/
             /* ETAPE N°5  : VARIABLES SPECIFIQUES  */
             /****************************************/
-            local list_var "06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23"     /*numéros des variables Cx et Vx : Etendu à 23 le 1/09/2009 */
-            local list_var_c ""
-            foreach j of local list_var {
-                quietly tab c`j'        /*on regarde le contenu de chaque Cx*/   
-                sort  c`j'      /*20/08/07 astuce pour éviter que la 1ère ligne soit un ménage non acheteur (sinon c`j'[1] = .!) (V)*/
-                if `r(r)'==1 {          /*le tab indique qqch--> variable nonmissing*/
-                    di "le tab indique qqch--> variable nonmissing"
-                    local nbsp = c`j'[1]    /*récupère la moda de c`j' pr créer sp qui va bien*/
-                    ren v`j'  sp`nbsp'    /*On renomme Vx  en  sp`v' avec "v" la valeur(indiquant le sens de la variable) de Cx afin de labelliser */
-                    drop c`j' 
+            *local list_var "06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23"     /*numéros des variables Cx et Vx : Etendu à 23 le 1/09/2009 */
+                        
+            /*1/08/13 boucles + génériques que précédemment (V4.0 pour années 2010 et antérieures)*/
+            /*        car par sa1, maintenant les questions (Cx) ne sont pas constantes*/
+            forv k = 106/`LastV' {
+                local j=substr("`k'",2,3)	/*ruse. k va de 106 à 131. Et j va donc de 06...31*/
+                qui vallist c`j'
+                local ListeModaCx "`r(list)'"
+        	
+                foreach mc of local ListeModaCx {
+                    if `annee'<2011 {
+                        capture gen sp`mc'=.                 
+                        replace sp`mc'=v`j' if c`j'==`mc'
+                    }
+                    
+                    if `annee'>=2011 {
+                        capture gen Spe`mc'=.      /*8/08/13 décision de changer le nom des var spécifiques à partir des données 2011 (puisque leur contenu a changé)*/           
+                        replace Spe`mc'=v`j' if c`j'==`mc'
+                    }
+                    
                 }
-                else {
-                    drop c`j'           /*on vire Cx qui ne sert à rien pour ce produit*/
-                    drop v`j'           /*idem pour Vx*/
-                }
+                drop c`j' 
+                drop v`j' 
             }
-        
-            compress
+            
+            /*31/07/13*/
+            if `annee'>=2011 {
+                /*12/08/13 rajout du "capture" car certains produits n'ont pas Spe71 (produit 152 par ex.  "152_CAFE PRET BOIRE")*/
+                capture ren Spe0 sa2    /*Spe-3 a été renommé Spe0 ds DataImportG11.do (-3 c'est l'appelation appelé sa2 pr le moment, changé en sa3 plus loin)*/
+                capture ren Spe71 sa3    /*la question (Cx) 71 correspond à "Quelle Marque" cf INRA_Questions.csv. Pr l'instant sa3 (changé en sa2 plus loin)*/
+                
+                /*1/08/13 Récup de sa7 qui est maintenant ds un fichier à part*/
+                merge n:1 sa2 using "../../DonneesOriginales/${CheminBrutes`annee'}/Achats/bldistrib.dta"
+                drop if _merge==2
+                drop _merge
+            }
+            
             set output proc
-            save "`bonprod'/panel`bonprod'NF`annee'",replace     /*   <----   fichier PRODUIT pour une année    */ 
+            ! mkdir `bonprod'
+            qui compress
+            qui save "`bonprod'/panel`bonprod'NF`annee'",replace     /*   <----   fichier PRODUIT pour une année    */ 
             set output error
              
             /***********************************/
             /*  ETAPE N°7  :  LABELLISATION  */  
             /***********************************/
-            /*labellisation  des variables produit COMMUNES (Fichier fait manuellement)*/
-            do "../../ProgsG/LabelVarProdComG.do"                  /*A VERIFIER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
-    
+   
             /*labellisation  des variables produit COMMUNES (1 fichier pr tous les produits) pour l'année `annee'*/ 
-            local var_com "ctwpenwp cvwp cawp s191"    
+            local var_com "ctwpenwp cvwp cawp s191          sa2 SPA"        /*31/07/13 variables rajoutées sa2 et SPA*/
+            /*31/07/13 capture rajouté car en 2011 on n'a plus la variable s191 (et donc plus son label). Par contre on a Labelsa22011.do pour sa2 et LabelSPA2011.do pour les Cx Vx*/ 
             foreach v of local var_com {  
-                do "Label`v'`annee'.do"
+                capture do "Label`v'`annee'.do"     
             }
     
-            /*Labelisation des variables produit SPECIFIQUES */
-            do "`bonprod'/LabelSP`bonprod'A`annee'.do"  
+            /*Labellisation des variables produit SPECIFIQUES */
+            capture do "`bonprod'/LabelSP`bonprod'A`annee'.do"    /*31/07/13 capture rajouté car en 2011 les Spe ne sont plus spécifiques au produit. Voir SPA au-dessus*/
+            capture  do "LabelSPA`annee'.do"
+            /*1/08/13 Pour 2011 sa3 est une variable spécifique (issue de Spe71 cf + haut). Ses labels sont dans ds typoSpe (ensemble des réponses constant pour toutes les questions)*/
+            capture label value sa3 typoSpe
+            capture do Labelsa2`annee'.do
             
             /*labellisation  des variables SA2, SA3, SA4 */  
-            do "`bonprod'/labelSA3SA4`bonprod'A`annee'.do"   /* Attention : changement de nom avec  2003 */
-                          
-            /*labellisation  de SA1 (pour l'instant un peu artisanal...). */  
-            quietly vallist libellesa1
-            local lib "`r(list)'"
-            /*labellisation variable sa1 num.lib*/
-            quietly vallist sa1
-            local nbprod "`r(list)'"
-            label define typosa1  `nbprod' "`lib'"  
-    
-            /*  <===========  LABELISATION DES MODALITES de TOUTES LES VARIABLES ===============*/
+            /*31/07/13 capture rajouté car en 2011 plus de sa4 et sa3-sa2 ci-dessus*/
+            capture do "`bonprod'/labelSA3SA4`bonprod'A`annee'.do"   /* Attention : changement de nom avec  2003 */
+            
+            /*labellisation  des variables produit COMMUNES (Fichier fait manuellement)*/
+            do "../../ProgsG/LabelVarProdComG.do"                  /*A VERIFIER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/ /*27/08/13 déplacé après avoir lancé "LabelSPA`annee'.do" pour que les moda de Spe1 soient labellisées (Spe1 va être renommée Gencode ici)*/
+            
+                                         
+            /*  <===========  LABELLISATION DES MODALITES de TOUTES LES VARIABLES ===============*/
             quietly ds
             local liste_variables `r(varlist)'
             foreach vari of local liste_variables {
@@ -293,9 +340,10 @@ foreach annee of local varlistannee {
             
             /*********  on renomme sa2 sa3 et réciproquement (29/01/08 C et V) ************/
             * 29/01/08 sa3 = range.appellation et sa2 = range (pour cohérence avec les fichiers ancienne formule, notamment pour MN2G.ado)
-            ren sa2 bonsa3
-            ren sa3 sa2
-            ren bonsa3 sa3
+            /*12/08/13 rajout du "capture" car certains produits n'ont pas Spe71 (produit 152 par ex.  "152_CAFE PRET BOIRE")*/
+            capture ren sa2 bonsa3
+            capture ren sa3 sa2
+            capture ren bonsa3 sa3
             
             di " "
             set output proc
@@ -303,14 +351,16 @@ foreach annee of local varlistannee {
             set output error
             
             /*  ETAPE N°8 : Création brand2 (ici car besoin du label de sa2 issu du php)*/
-            quietly FusionMarques3456    /*NEW 18/12/08*/
-            quietly MN2G 
-            
+            capture quietly FusionMarques3456    /*NEW 18/12/08*/
+            set output proc
+                count
+                capture quietly MN2G    /* 6/08/13 : revoir MN2G car y a des drop dedans*/ /*12/08/13 rajout du "capture" car certains produits n'ont pas sa2 (produit 152 par ex.  "152_CAFE PRET BOIRE")*/
+                di in red "On regarde si MN2G a viré des obs...."
+                count
+            set output error
             di " "
-            compress
-            /*CHANGER LISTE VAR A ORDONNER 3/08/07!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
-            * capture order nopnlt*  c06- unite sp*  noreg- rs  sec- fru1 fru2 leg1  Sexe* BMI*  iage1- itpo1  acha- kafe  legu - ucfo vais- nbpers dogs- vcat Code_Commune foyer maber merge* s* nbsem v* nbvac  
-            
+            qui compress
+
             capture drop toto
             
             /* Tests sur l'unité (tuwa) du produit (si différent selon l'année) */
@@ -320,9 +370,11 @@ foreach annee of local varlistannee {
             }
             note : Créé avec la version `version' de DataMakerG.do
             capture numlabel, add force  /*pr avoir "num modalité" . "label modalité"*/
-            label data "Produit `produit' (`lib') , annee `annee' ($S_DATE)" 
+            quietly vallist libellesa1
+            label data "Produit `produit' (`r(list)') , annee `annee' ($S_DATE)" 
             save "`bonprod'/p`bonprod'NF",replace  
-     
+            di in red "Fin de la création du fichier p`bonprod'NF.dta (`r(list)') , annee `annee' ($S_DATE)"
+
             /* ON FLINGUE    !!! */
             cd `bonprod'
             ! del panel*.dta    

@@ -5,6 +5,8 @@
 /*29/09/11 rajout test existence du fichier (car par ex. ça plantait pr produit 80 année 2007 car pas d'obs et dc pas de fichier p0080NF.dta créé!)*/
 /*30/07/12 Le label du fichier était sur 3 années; Il est changé et n'est  que sur l'année ( puisque un fichier par année) */
 /*17/01/13 correction test existence fichier produit (ex. produit 80 inexistant en 2007)*/
+/*8/08/13 compatible 2011*/
+/*23/08/13 : Correction du bug sur les logs (chaque produit a son log).  (C) */
 /* =============PROGRAMME VERIF EPURE================*/
 clear
 capture log close
@@ -28,10 +30,15 @@ foreach annee of local varlistannee {
     di in red "*************************************"
 
     use "../DonneesOriginales/brutesNF${PetitNom`annee'}\Produits${PetitNom`annee'}.dta" , replace
-    *quietly levels sa1 if mergeall!=1 & mergeall!=.     & panel!=.   
-    *local ListeTousProd "`r(levels)'" 
+    if `annee'<2011 {
+        quietly levels sa1 if mergeall!=1 & mergeall!=.     & panel!=.      
+    }
+    else {  /*à partir de 2011 on a des infos (panel, sa1) par ref (donc les tests faits ds DataImportG11.do changent) et la variable panel est string ("GC", "PF")*/
+        quietly levels sa1 if   Nsa1!=SumTest1   &   Nsa1!=.  & SumTest1 !=.  &   panel!=""   
+    }
+    local ListeTousProd "`r(levels)'" 
     /* MANUELLEMENT */
-local ListeTousProd "0005" 
+    *local ListeTousProd "0005" 
 
 
     
@@ -51,7 +58,7 @@ local ListeTousProd "0005"
         local bonprod "`r(list)'" 
         drop toto*
         
-       
+        cd `bonprod'    /*niveau produit en cours*/
         
         log using "VerifEpureG$S_DATE.smcl", replace   
 
@@ -60,11 +67,11 @@ local ListeTousProd "0005"
         /*  Creation du fichier VERIFIE     */ 
         /* ---------------------------------*/   
         /*New 29/09/11 : test fichier créé (non créé si pas d'obs pr ce produit-année)*/
-        capture confirm file `"`bonprod'/p`bonprod'NF.dta"'
+        capture confirm file `"p`bonprod'NF.dta"'
          
          
         if !_rc {		/*fichier existe : il y avait des obs pr ce produit et cette année*/
-            cd `bonprod'    /*niveau produit en cours*/
+            
             use "p`bonprod'NF.dta", replace
             set output proc
             di in yellow "******  VERIFICATION  ******"
@@ -83,14 +90,14 @@ local ListeTousProd "0005"
             quietly do "../../../ProgsG/EpureG.do"    /*  nouvelle version avec mergeProduitPanel  */
             
     
-            capture vallist lib*        /*correction 1/04/10 (V) parfois lors de l'importation c'est libellesa1 et pas libellssa1*/
+            capture vallist lib*sa1        /*correction 1/04/10 (V) parfois lors de l'importation c'est libellesa1 et pas libellssa1*/
             local lib "`r(list)'"
             capture label data "`lib' (`bonprod') EPURE, annees (`annee') ($S_DATE). PRIX EN EUROS"  
             quietly compress
             save "p`bonprod'NF_E.dta",replace 
     
             ! del "p`bonprod'NF_V.dta"   /*ON VIRE le _V SINON PB PLACE SUR ORDI (Modifié CB le 4/03/2008)*/
-            cd ..       /*niveau Produits*/
+            
         }
             
         else {
@@ -99,7 +106,7 @@ local ListeTousProd "0005"
             set output error
         }
         
-        
+       cd ..       /*niveau Produits*/
                 
         log close
                       

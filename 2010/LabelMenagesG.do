@@ -12,8 +12,9 @@
 /*version 1.4 : Labellisation etud`i' (19/07/11 VO) */
 /*version 1.5 : correction labels fru`i' et leg`i' avec i=1,2,3 (0 c'est non, 1 oui et pas l'inverse!!!) (3/08/11 VO)*/
 /*version 2.0 : version générique et nouvelles variables 2008, 2009 (VO)*/
+/*version 3.0 : rajouts nouvelles variables 2010, 2011 (VO)*/
 
-local version "M2.0"
+local version "M3.0"
 
 note : Programme de labelisation des ménages : version `version'
 /* capture labelise les variables menages */ 
@@ -130,6 +131,8 @@ forvalues i=1/14 {
     capture label variable ihau`i' "Stature indiv `i' (cm) "    /*chgt 2003-2005 (avant classes)!!!!*/
     capture label variable Sexe`i' "Sexe indiv `i' (déduit des mensurations données)"
     capture label variable ageind`i' "age de l'individu `i' du foyer (en mois) (-1 bébé à naitre)" 
+    /*new 27/08/13*/
+    capture label variable ianb`i'  "Année de naissance de l'individu `i' du foyer"
     
     /*-- tour taille (que pour les hommes) --*/
     capture label value itai`i' typoitai
@@ -177,6 +180,11 @@ forvalues i=1/14 {
 */       81 "chomeurs n'ayant jamais travaille" 83 "militaires du contingent" 84 "eleves, etudiants" /*
 */       87 "personnes diverses sans activite professionnelle" 99 "non declare"
           capture label value cspp typocspp
+
+        /*27/08/13 labellisation csp pour tous les indiv du ménage*/
+        forv i=1/14 {
+            capture label value icsp`i' typocspc
+        }
 
           capture label define typodipc 0 "en etudes ou non declare" 1 "> bac +2" 2 "bac +2" /*
 */        3 "bac, brevet technicien, de maitrise" 4 "CAP" 5 "BEP" 6 "BEPC" 7 "certif d'etudes" 8 "aucun diplomes"
@@ -308,9 +316,8 @@ capture label variable fru3 "Possession d'arbres fruitiers ailleurs"
 capture label define typofru3 1 "Oui" 0 "Non" 2 "Non déclaré"
 capture label value fru3 typofru3
 
-forvalues i=1/11 {
+forvalues i=1/14 {
     capture label variable iage`i' "Age indiv `i'"
-    capture label variable ageind`i' "Age indiv `i'"    /*new 2005*/
     capture label variable iana`i' "Annee naiss indiv `i'"
     capture label variable ihad`i' "Stature indiv `i'  (en cm)"
     capture label variable ibad`i' "Tour de bassin indiv `i'  (en cm) (Femmes seulement)"
@@ -508,3 +515,35 @@ capture label value kafe typokafe
 
 capture label define typostat 0 "PAS DE BEBE" 3 "FILLE" 4 "GARçON" 
 capture label stat typostat
+
+/*********   nouvelles variables 2010 , 2011 *************/
+capture label variable itra	"activité professionnelle du panéliste" 
+capture label define typoitra 1 "Travail à temps complet"  2 "Travail à temps partiel"   0 "sans activité"   9 "non déclaré"
+capture label value itra typoitra
+forv i=1/14 {
+    capture label value itra`i'	 typoitra
+}
+
+capture label variable cycle "cycle de vie  (Calcul sur l'âge de la PRA)"
+capture label define typocycle 1  "Jeunes célibataires (NF1 - de 35 ans, ss enf)"/*
+*/  2 "Célibataires âge moyen (NF1 35-64 ans, ss enf)" /*
+*/ 3 "Vieux célibataires (NF1 65 ans et +, ss enf)" /*
+*/ 4 "Jeunes couples (NF2 et +, de - de 35 ans, ss enf)" /*
+*/5 "Couples âge moyen (NF2 et +, 35-64 ans, ss enf)" /*
+*/6 "Vieux couples (NF2 et +, 65 ans et +, ss enf)" /*
+*/7 "Famille maternelle (NF2 et +, enf le + vieux a de 0 à 5 ans)" /*
+*/8 "Famille école primaire (NF2 et +, enf le + vieux a de 6 à 11ans)" /*
+*/9 "Famille collège et lycée (NF2 et +, enf le + vieux a de 12 à 17ans) " /*
+*/10 "Famille enfants majeurs (NF2 et +, enf le + vieux a de 18 à 24ans)
+capture label value cycle typocycle
+
+capture label variable chip	"Poids du chien le plus petit"
+capture label variable chig	"Poids du chien le plus gros"
+capture label define typochipchig 1 "MOINS DE 5 KGS" 2 "5 A 10 KGS" 3 "11 A 15 KGS" 4 "16 A 20 KGS" 5 "21 A 25 KGS" 6 "26 A 35 KGS" 7 "36 A 45 KGS" 8 "PLUS DE 45 KGS"
+capture label value chip typochipchig
+capture label value chig typochipchig
+
+
+capture label variable  scla "CLASSE SOCIO-ECONOMIQUES OCDE"
+capture label define typoscla 	1 "TRES MODESTE" 2 "MODESTE" 3 "MOYENNE INFERIEURE" 4 "MOYENNE SUPERIEURE" 5 "AISEE"
+capture label value scla typoscla

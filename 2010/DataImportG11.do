@@ -1,7 +1,10 @@
 /* ====================================================================================================*/
 /* ====================================   PROGRAMME DATAIMPORTG11   =================================*/
 /* ====================================================================================================*/
-/*26/07/13 Issu de DataImportG.do (C et V)*/
+/*26/07/13 : Issu de DataImportG.do (C et V)*/
+/*07/08/13 : Version 1.1 : suppression d'une seconde liste list_per pour mergeall (l.174) (C)  */ 
+/*05/09/13 : version 1.2 : Nouvelle version  de INRA_Marques_Detail_Avec_Bl_Distrib_V2.1.csv reçue  */
+/*10/09/13 : Version 1.3 : Nouvelle version  de INRAClassq_Codif_Vf_Panel_V2.2.csv reçue  */
 
 set output proc    /* supprime l'affichage (sauf erreurs) */
 clear
@@ -10,7 +13,7 @@ capture log close
 pause on
 set more off  /* pour que Stata ne stope pas en fin de page  */
 
-local version "1.0"
+local version "1.3"
 
 /*========================= DEFINITION DES PRODUITS - ANNEES =============================*/
 /*26/09/12 NEW : Chemin PHP automatique (car version de php peut varier ds le temps et celon les PCs')*/
@@ -33,6 +36,8 @@ else {
     global chemphp "! c:/wamp/bin/php/`NbVersionsPHP'/php.exe -q"       
 }
    
+/* Pour CB  */ 
+global chemphp "! c:/wamp/bin/php/php5.3.5/php.exe -q"          
 local varlistannee "2011"      /*  <------------------------- !!! ANNEES   */  
 
 do CheminSourceG.do   
@@ -67,12 +72,11 @@ foreach annee of local varlistannee {
     /*à partir  de INRAClassq_Achats_2011p.csv   */
     /**********************************************************************/
     local list_per "01 02 03 04 05 06 07 08 09 10 11 12 13"  
-    local list_per "01"  
-
+ 
     cd "DataUSI`annee'"
     
     /****   Importation fichiers achats NON USI ****/
-    foreach per of local list_per {
+    foreach per of local list_per {  
          /* Données USI  */
         clear
         set output proc
@@ -107,14 +111,14 @@ foreach annee of local varlistannee {
     
     /***** Fichier qui associe sa7 (MDD ou non) à sa2 (sa3) *****/   
     /*Attention, ds le fichier suivant c'est sa3 ms on l'appelle sa2 pr être cohérent avec DataMaker qui va renommer sa2 en sa3*/
-    insheet using  Achats/INRA_Marques_Detail_Avec_Bl_Distrib.csv , delimit(";")   clear
+    /*5/09/13 Nouveau fichier des appellations*/
+    insheet using  Achats/INRA_Marques_Detail_Avec_Bl_Distrib_V2.1.csv , delimit(";")   clear
     ren codemarque sa2
     drop libmarque  
     ren bldistrib  sa7
     save Achats/bldistrib.dta, replace
     
     /***** Création d'un fichier reliant sa1 et libellé sa1 *****/    
-    /*INRAClassq_Codif_Vf_Panel_V2.1.csv créé à la main à partir de INRAClassq_Codif_Vf_Panel_V2.1.xlsx*/
     insheet  using Achats/Equivalence_VF_INRA_Classique_QiRi_Enum.csv , delimit(";")   clear
     keep vf nomcourt
     ren vf sa1
@@ -125,12 +129,12 @@ foreach annee of local varlistannee {
     /*********************************************************************/
     /*      Création du fichier listing des produits (et leur panel)     */ 
     /*********************************************************************/
-    /***** Création de Produits11.dta à partir  de "INRAClassq_Codif_Vf_Panel_V2.1.csv" avec les var CODIF, ref, sa1 et panel *****/    
+    /***** Création de Produits11.dta à partir  de "INRAClassq_Codif_Vf_Panel_V2.2.csv" avec les var CODIF, ref, sa1 et panel *****/    
     /*Attention Produits11.dta a maintenant 1 L par ref et pas par sa1.*/
-    insheet  using Achats/INRAClassq_Codif_Vf_Panel_V2.1.csv , delimit(";")  clear
+    insheet  using Achats/INRAClassq_Codif_Vf_Panel_V2.2.csv , delimit(";")  clear
     ren idanciennevf sa1
     ren product ref
-    replace panel="PF" if panel=="indetermine"      /*31/07/13 on décide que les 22 produits (ref ou product) jambon à la coupe sont PF*/
+    replace panel="PF" if panel=="indetermine"      /*31/07/13 on décide que les 22 produits (ref ou product) jambon à la coupe sont PF*//*10/09/13 plus besoin car ds le nouvel envoi v2.2 pas de produit sans panel!*/
     order ref  sa1 panel 
     
     replace sa1="" if sa1=="indetermine"
@@ -166,11 +170,10 @@ foreach annee of local varlistannee {
     drop  codif libelle
     capture drop merge*
     gen mergeall=1
-    local list_per "01 02 03 04 05 06 07 08 09 10 11 12 13"    /*6/08/13 correction il faut merger de 1 à 13*/
-    
-    foreach i of local list_per {
+ 
+    foreach i of local list_per {        /* 07/08/13  list_per déjà défini plus haut  */
     	merge n:n ref using "Data_ET`annee'`i'.dta", keepusing(ref) gen(merge`annee'`i')
-    	*bysort sa1 : keep if _n==1
+    	bysort ref : keep if _n==1     /*5/09/13 correction*/
     	replace mergeall=mergeall*merge`annee'`i'
     }
     
@@ -231,7 +234,7 @@ foreach annee of local varlistannee {
     $chemphp LabelComNFG11.php            ctwpenwp      `annee'     ${CheminBrutes`annee'}      INRA_Extract_Shops
     $chemphp LabelComNFG11.php            cawp          `annee'     ${CheminBrutes`annee'}      INRA_Extract_CentralesAchats
     /*Attention, ds le fichier suivant c'est sa3 ms on l'appelle sa2 pr être cohérent avec DataMaker qui va renommer sa2 en sa3*/
-    $chemphp LabelComNFG11.php            sa2       `annee'     ${CheminBrutes`annee'}      INRA_Marques_Detail_Avec_Bl_Distrib 
+    $chemphp LabelComNFG11.php            sa2       `annee'     ${CheminBrutes`annee'}      INRA_Marques_Detail_Avec_Bl_Distrib_V2.1 
     di in green " Programmes de Labellisation des variables cvwp, ctwpenwp, cawp et sa2 créés."    
 
     /*Pr les cx vx*/

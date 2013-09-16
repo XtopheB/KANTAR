@@ -21,8 +21,9 @@
 /*Version 4.0  1/09/11 : version générique; chgt de boucle : 1 produit par année*/
 /*                     : liste des produits à partir du fichier ProduitsNFXXX.dta DANS la boucle année*/
 /*Version 5.0 31/07/13 : adaptation aux fichiers 2011 créés par DataImportG11.do*/
-/*====================================================================================================*/
-local version "5.0"
+/*Version 5.1 07/08/13 : Correction d'un bug apparu en 2011 lors de la concaténation des périodes pour chaque produit*/ 
+/*=================================================================================================================================*/
+local version "5.1"
 
 *set output error    /* supprime l'affichage (sauf erreurs) */
 clear
@@ -42,10 +43,15 @@ do CheminSourceG.do
 foreach annee of local varlistannee {
         
     use "../DonneesOriginales/brutesNF${PetitNom`annee'}\Produits${PetitNom`annee'}.dta" , replace
-    *quietly levels sa1 if mergeall!=1 & mergeall!=.     & panel!=.      /*31/07/13 TO DO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
+    if `annee'<2011 {
+        quietly levels sa1 if mergeall!=1 & mergeall!=.     & panel!=.      
+    }
+    else {  /*à partir de 2011 on a des infos (panel, sa1) par ref (donc les tests faits ds DataImportG11.do changent) et la variable panel est string ("GC", "PF")*/
+        quietly levels sa1 if   Nsa1!=SumTest1   &   Nsa1!=.  & SumTest1 !=.  &   panel!=""
+    }
     local ListeTousProd "`r(levels)'"  
     /* MANUELLEMENT */
-    local ListeTousProd "0005" 
+local ListeTousProd "0005"  /* <------------------------------------ !!!!!!!!!!!!!!!!!!*/ 
     log using "../Data`annee'/Produits/DataMakerG_$S_DATE.smcl", replace
     di in red "Début du prog le `c(current_date)' à `c(current_time)'."
 
@@ -61,12 +67,12 @@ foreach annee of local varlistannee {
         cd ../DonneesOriginales/${CheminBrutes`annee'}   
         
         local list_per "01 02 03 04 05 06 07 08 09 10 11 12 13"    /*1/08/13 nouveau, on démarre à 01 à partir d'un fichier vide*/
-local list_per "01" 
+*local list_per "01 02 03" /* <------------------------------------ !!!!!!!!!!!!!!!!!!*/ 
         foreach j of local list_per {
             append using "Data_ET`annee'`j'.dta"
             /*fichier produit (sa3, sa2, sa7, sa4....) ou à partir de 2011 : sa1, panel, libellesa1 et Cx, Vx (par contre en 2011, sa2 et sa7 ne sont pas ds ce fichier)*/
             /*1/08/13 merge ici et pas après la boucle car on a besoin du sa1 ici*/
-            merge n:1 ref using Achats/Product_Desc_1aN`annee'.dta      
+            merge n:1 ref using Achats/Product_Desc_1aN`annee'.dta, update replace     
             drop if _merge==2
             capture drop _merge
             keep if sa1==`produit'
