@@ -3,7 +3,7 @@
 // Changement de version de PHP (?php au lieu de ? ) 31/05/2011"
 // à partir du fichier LabelSPNFG.php  sur les fichiers 2008-2010
 // avant on utilisait 2 fichiers (marques et sp) maintenant on utilise   "INRA_Questions.csv" (Cx) et  "INRA_Reponses.csv" (Vx)
-
+// Affectation label typoNull aux variables de quantités (CB,16/09/2013 )
 
 <?php
 
@@ -59,6 +59,9 @@ $milieu="/* Affectation des labels des variables spécifiques */ ";
 fputs ($fout,"\n"."/********************************************************************************************/\n");
 fputs ($fout, $milieu);
 fputs ($fout,"\n"."/********************************************************************************************/ \n");
+// Il faut créer un label nul !!
+$labelnul="capture label define typoNul 0 \" . \" \n \n ";
+fputs ($fout, $labelnul);
 
 while (!feof($fp2))
 {
@@ -74,6 +77,11 @@ while (!feof($fp2))
         if($idtype==0)
         {
             $aecrire="capture label value Spe".$nspe." typoSpe \n";
+            fputs ($fout, $aecrire);
+        }
+        if($idtype==1)
+        {
+            $aecrire="capture label value Spe".$nspe." typoNul \n";
             fputs ($fout, $aecrire);
         }
 
